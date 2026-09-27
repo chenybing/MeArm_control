@@ -1,29 +1,123 @@
-# 编译产物
+# ===== MeArm 机械臂项目 .gitignore =====
+# 排除所有不需要提交到仓库的内容：构建产物、依赖、IDE 配置、系统垃圾文件等
+
+# ---------- 构建产物 / 编译输出 ----------
 build/
 dist/
+out/
 *.o
 *.obj
 *.exe
 *.dll
 *.so
 *.a
+*.lib
+*.dylib
+*.dSYM/
+*.elf
+*.hex
+*.eep
+*.bin
+*.map
+*.lst
+*.sym
 
-# Python
+# ---------- Arduino ----------
+# Arduino 编译产生的临时目录
+/arduino_build*/
+/libraries/ArduinoJson/  # 示例：第三方库不要提交（按实际调整）
+*.ino.bak
+*.ino.tmp
+
+# ---------- PlatformIO ----------
+.pio/
+.pioenvs/
+.piolibdeps/
+.pioide/
+.clangd/
+.clang-format
+.cache/
+.vscode/
+
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
+*.so
+.Python
 .venv/
 venv/
 env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 *.egg-info/
+dist/
+build/
+eggs/
+wheels/
 
-# IDE / 编辑器
-.vscode/
+# ---------- Node（如用到） ----------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- IDE / 编辑器配置 ----------
 .idea/
+.vscode/
 *.swp
 *.swo
-.DS_Store
+*.swn
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
 
-# 日志与临时文件
+# ---------- 系统与资源管理器垃圾文件 ----------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---------- 日志 / 临时文件 ----------
 *.log
 *.tmp
+*.temp
 *.bak
+*.old
+*.orig
+*.rej
+*.pid
+
+# ---------- 密钥与敏感信息（绝不提交） ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+*.secret
+credentials.json
+
+# ---------- 测试 / 覆盖率 ----------
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ---------- 文档生成（如用 Sphinx 等） ----------
+docs/_build/
+docs/build/
