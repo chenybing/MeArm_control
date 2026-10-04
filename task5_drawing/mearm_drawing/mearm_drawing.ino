@@ -1,7 +1,16 @@
 /*
  * ============================================================
- *  meArm 机械臂 · 任务五：轨迹绘制（画图）
+ *  meArm 机械臂 · 任务五：轨迹绘制（画图）—— 早期版本
  *  考核方向：算法（控制、视觉）方向 · 二面考核（占 35%）
+ * ============================================================
+ *  ⚠ 说明：本文件是任务五的【早期独立版本】，绘图平面按「竖直纸面」建模
+ *     （底座固定 90°，笔尖在 x-z 竖直平面内移动）。
+ *     正式提交 / 现场演示请使用整合工程 mearm_main/mearm_main.ino：
+ *       · 绘图平面改为「水平桌面」（底座扫左右 + 大臂小臂调半径）
+ *       · 补齐了子任务 2 的 N/三角形/Z/V（本文件只有正方形/圆/五角星）
+ *       · 补齐了子任务 3 的 暂停 / 继续 / 取消
+ *       · 补齐了子任务 4 / 5 的五点示教 + 折线 / 平滑曲线
+ *     本文件保留作为开发过程记录，其中的逆解函数仍可作参考。
  * ============================================================
  *
  * ────────────────────────────────────────────────────────────
@@ -218,14 +227,17 @@ void loop() {
  *   s  = atan2(z,x) - atan2(L2·sin e, L1+L2·cos e)  —— 大臂夹角
  * 注意：三角函数全是弧度制，最后用 degrees() 转成度。
  * ============================================================ */
-void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
+bool targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
   float d = sqrt(x * x + z * z);                // ① 末端到肩轴距离（勾股定理）
 
   // 可达性检查：够不着（超过两臂总长）或折叠死（小于两臂差）都不可达
+  // 【注意】必须给输出参数赋值再返回！早期版本直接 return，
+  //         调用方会拿到未初始化的栈垃圾，机械臂会突然乱甩。
   if (d > ARM_L1 + ARM_L2 || d < fabs(ARM_L1 - ARM_L2)) {
     Serial.print("目标不可达: x="); Serial.print(x);
     Serial.print(" z="); Serial.println(z);
-    return;                        // 不可达 → 保持原角度不动
+    shoulderDeg = -1; elbowDeg = -1;   // -1 = 不可达标记
+    return false;
   }
 
   // ② 余弦定理求小臂夹角（余弦值可能因浮点误差略超 [-1,1]，先夹断）
@@ -245,6 +257,7 @@ void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
   // 边界保护：超出舵机物理范围就钳制
   shoulderDeg = constrain(shoulderDeg, SHOULDER_MIN, SHOULDER_MAX);
   elbowDeg    = constrain(elbowDeg,    ELBOW_MIN,    ELBOW_MAX);
+  return true;
 }
 
 /* ============================================================
@@ -256,7 +269,8 @@ void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
  * ============================================================ */
 void moveToXY(float x, float z) {
   int targetShoulder, targetElbow;            // 先声明两个"接收结果的盒子"
-  targetToAngles(x, z, targetShoulder, targetElbow);  // 逆解（结果写进这两个变量）
+  // 逆解（结果写进这两个变量）；失败说明该点不可达 → 原地不动，直接返回
+  if (!targetToAngles(x, z, targetShoulder, targetElbow)) return;
 
   // 只要还有关节没到位就继续（和前面程序的 moveSync 一样的同步逻辑）
   while (curShoulder != targetShoulder || curElbow != targetElbow ||

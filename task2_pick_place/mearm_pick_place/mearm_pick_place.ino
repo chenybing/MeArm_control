@@ -47,8 +47,12 @@
  * ============================================================
  * 【测试方法】（串口监视器 9600）
  * ============================================================
- *   run  → 完整执行：依次夹取 A、B、C 放到放置区
+ *   A    → 夹取物体 A，放到 A 的放置位
+ *   B    → 夹取物体 B，放到 B 的放置位
+ *   C    → 夹取物体 C，放到 C 的放置位
+ *   run  → 依次执行 A、B、C
  *   home → 回到初始姿态（全部 90°）
+ *   注：大小写都认（程序内部统一转成小写再比较）
  * ============================================================
  */
 
@@ -75,15 +79,20 @@ struct Point { int base; int shoulder; int elbow; int gripper; };
 const int GRIPPER_OPEN  = 0;
 const int GRIPPER_CLOSE = 180;
 
-/* 五个关键点位（都是占位值，按你的实际摆放修改）：
- *   POS_A/B/C：三个物体的位置
- *   POS_DROP ：放置区的位置
- *   POS_LIFT ：通用的"抬升位"—— 夹取/放置前的安全高度，
- *              角度设置成让机械臂抬起来、不会撞到物体的姿态。 */
-const Point POS_A    = { 30,  60,  90, GRIPPER_OPEN };   // 物体 A 位置
-const Point POS_B    = { 90,  60,  90, GRIPPER_OPEN };   // 物体 B 位置
-const Point POS_C    = { 150, 60,  90, GRIPPER_OPEN };   // 物体 C 位置
-const Point POS_DROP = { 90,  100, 120, GRIPPER_OPEN };  // 放置点位置
+/* 关键点位（都是占位值，按你的实际摆放修改）：
+ *   POS_A/B/C ：三个物体的取物位（现在分在底座 30° / 90° / 150° 三个方向上）
+ *   POS_PLACE_A/B/C：三个【互不相同】的放置位。
+ *       考核要求「放置到另一位置，三个明显不同的位置，且与物体在 x 与 y
+ *       方向上都有明显位移」。用底座角拉开 x 向位移、用大臂/小臂角拉开
+ *       y 向位移，三个放置位彼此也分得开。
+ *   POS_LIFT  ：通用的"抬升位"—— 夹取/放置前的安全高度，
+ *               角度设置成让机械臂抬起来、不会撞到物体的姿态。 */
+const Point POS_A    = { 30,  60,  90,  GRIPPER_OPEN };  // 物体 A 位置
+const Point POS_B    = { 90,  60,  90,  GRIPPER_OPEN };  // 物体 B 位置
+const Point POS_C    = { 150, 60,  90,  GRIPPER_OPEN };  // 物体 C 位置
+const Point POS_PLACE_A = { 55,  95,  115, GRIPPER_OPEN };// A 的放置位（偏右后）
+const Point POS_PLACE_B = { 90,  110, 130, GRIPPER_OPEN };// B 的放置位（正前更远）
+const Point POS_PLACE_C = { 125, 95,  115, GRIPPER_OPEN };// C 的放置位（偏左后）
 const Point POS_LIFT = { 90,  45,  120, GRIPPER_OPEN };  // 通用抬升（安全高度）
 
 const int STEP_DELAY = 15;   // 每走 1° 的间隔（毫秒），越小动作越快
@@ -109,6 +118,9 @@ String serialBuffer = "";   // 串口接收缓冲
  * setup()：开机执行一次
  * ============================================================ */
 void setup() {
+  // 【顺序很重要】串口必须先初始化，否则后面 goHome() 里的打印会全部丢失
+  Serial.begin(9600);
+
   // 绑定四个舵机
   servoBase.attach(PIN_BASE);
   servoShoulder.attach(PIN_SHOULDER);
@@ -117,9 +129,7 @@ void setup() {
 
   goHome();   // 上电先回初始姿态（全部 90°），保证动作从已知状态开始
 
-  // 串口初始化
-  Serial.begin(9600);
-  Serial.println("READY | 指令: run=夹取ABC  home=回初始位");
+  Serial.println("READY | 指令: A/B/C=夹取对应物体  run=依次夹取三个  home=回初始位");
 }
 
 /* ============================================================
@@ -137,12 +147,19 @@ void loop() {
         cmd.trim();               // 去首尾空格
         cmd.toLowerCase();        // 统一转小写：RUN 和 run 都能识别
 
-        if (cmd == "run") {
-          pickAndPlaceAll();      // 执行完整任务
+        // 考核要求：上位机发送 "A" / "B" / "C" 分别夹取对应物体
+        if (cmd == "a") {
+          pickAndPlace(POS_A, POS_PLACE_A, "A");
+        } else if (cmd == "b") {
+          pickAndPlace(POS_B, POS_PLACE_B, "B");
+        } else if (cmd == "c") {
+          pickAndPlace(POS_C, POS_PLACE_C, "C");
+        } else if (cmd == "run") {
+          pickAndPlaceAll();      // 依次夹取 A、B、C（连做三次）
         } else if (cmd == "home") {
           goHome();               // 回初始姿态
         } else if (cmd.length() > 0) {
-          Serial.println("未知指令: 支持 run / home");
+          Serial.println("未知指令: 支持 A / B / C / run / home");
         }
       }
     } else {
@@ -160,9 +177,9 @@ void loop() {
 void pickAndPlaceAll() {
   Serial.println("== 任务二开始：依次夹取 A、B、C ==");
 
-  pickAndPlace(POS_A, "A");   // 夹取 A 放到放置区
-  pickAndPlace(POS_B, "B");   // 夹取 B 放到放置区
-  pickAndPlace(POS_C, "C");   // 夹取 C 放到放置区
+  pickAndPlace(POS_A, POS_PLACE_A, "A");   // 夹取 A 放到 A 的放置位
+  pickAndPlace(POS_B, POS_PLACE_B, "B");   // 夹取 B 放到 B 的放置位
+  pickAndPlace(POS_C, POS_PLACE_C, "C");   // 夹取 C 放到 C 的放置位
 
   goHome();                   // 全部完成后回初始姿态
   Serial.println("== 任务二完成 ==");
@@ -181,7 +198,7 @@ void pickAndPlaceAll() {
  *   直接从一个物体飞到另一个物体容易撞到，先统一升到安全高度，
  *   再水平移动，最后才下降 —— 这是工业机器人取放的标准安全路径。
  * ============================================================ */
-void pickAndPlace(Point pickPos, const char* name) {
+void pickAndPlace(Point pickPos, Point placePos, const char* name) {
   Serial.print("-- 夹取物体 "); Serial.println(name);
 
   // ① 先到抬升位（安全高度）
@@ -198,8 +215,8 @@ void pickAndPlace(Point pickPos, const char* name) {
   // ④ 回到抬升位（带着物体升起来，避免拖拽刮到桌面）
   moveTo(POS_LIFT);
 
-  // ⑤ 转到放置区，下降到放置位
-  moveTo(POS_DROP);
+  // ⑤ 转到【该物体专属的】放置位，下降
+  moveTo(placePos);
 
   // ⑥ 开爪放下物体，停顿让物体落稳
   moveGripper(GRIPPER_OPEN);

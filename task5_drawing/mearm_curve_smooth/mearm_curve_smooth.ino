@@ -1,7 +1,13 @@
 /*
  * ============================================================
- *  meArm 机械臂 · 任务五（进阶）：多点平滑曲线
+ *  meArm 机械臂 · 任务五（进阶）：多点平滑曲线 —— 早期版本
  *  考核方向：算法（控制、视觉）方向 · 二面考核
+ * ============================================================
+ *  ⚠ 说明：本文件用「串口输入点列」的方式演示 Catmull-Rom 平滑曲线，
+ *     没有示教功能、没有暂停/继续/取消、绘图平面是竖直纸面。
+ *     正式提交 / 现场演示请使用整合工程 mearm_main/mearm_main.ino，
+ *     那里做了完整的子任务 4 / 5（摇杆五点示教 + 折线 / 平滑曲线 +
+ *     按键暂停继续取消），本文件保留为开发过程记录与算法参考。
  * ============================================================
  *
  * ────────────────────────────────────────────────────────────
@@ -211,14 +217,16 @@ void loop() {
  * 【运动学】targetToAngles()：末端位置 (x,z) → 舵机角度
  * （与 mearm_drawing.ino 完全一致，这里复用同一套逆解公式）
  * ============================================================ */
-void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
+bool targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
   float d = sqrt(x * x + z * z);                        // ① 末端到肩轴距离
 
   // 可达性检查：够不着或折叠死都不可达
+  // 【注意】必须给输出参数赋值再返回，否则调用方会用到未初始化的栈垃圾。
   if (d > ARM_L1 + ARM_L2 || d < fabs(ARM_L1 - ARM_L2)) {
     Serial.print("目标不可达: x="); Serial.print(x);
     Serial.print(" z="); Serial.println(z);
-    return;                                             // 保持原角度不动
+    shoulderDeg = -1; elbowDeg = -1;                    // -1 = 不可达标记
+    return false;
   }
 
   // ② 余弦定理求小臂夹角（余弦值可能略超 [-1,1]，先夹断）
@@ -236,6 +244,7 @@ void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
   elbowDeg    = (int)(degrees(eRad)) + ELBOW_OFFSET;
   shoulderDeg = constrain(shoulderDeg, SHOULDER_MIN, SHOULDER_MAX);
   elbowDeg    = constrain(elbowDeg,    ELBOW_MIN,    ELBOW_MAX);
+  return true;
 }
 
 /* ============================================================
@@ -244,7 +253,8 @@ void targetToAngles(float x, float z, int &shoulderDeg, int &elbowDeg) {
  * ============================================================ */
 void moveToXY(float x, float z) {
   int targetShoulder, targetElbow;
-  targetToAngles(x, z, targetShoulder, targetElbow);
+  // 逆解失败（点不可达）→ 原地不动直接返回，避免用到未初始化的角度
+  if (!targetToAngles(x, z, targetShoulder, targetElbow)) return;
 
   while (curShoulder != targetShoulder || curElbow != targetElbow ||
          curBase != BASE_ANG || curGripper != PEN_GRIP) {
