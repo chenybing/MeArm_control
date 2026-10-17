@@ -166,14 +166,14 @@ void setup() {
   for (uint8_t i = 0; i < BTN_COUNT; i++) pinMode(BTN_PINS[i], INPUT_PULLUP);
 
   Serial.begin(9600);
-  Serial.println(F("READY | meArm 主控 | 输入 HELP 查看指令表"));
+  Serial.println(F("meArm 就绪，发 HELP 看指令"));
 #if LOCAL_BUTTONS
-  Serial.println(F("本地按键: 已启用 (D2暂停 D3继续 D10取消 D11示教记录)"));
+  Serial.println(F("本地按键开着：D2 暂停，D3 继续，D10 取消，D11 记点"));
 #else
-  Serial.println(F("本地按键: 已禁用 (LOCAL_BUTTONS=0)"));
-  Serial.println(F("          暂停/继续/取消请发 PAUSE / RESUME / CANCEL"));
+  Serial.println(F("本地按键关着（LOCAL_BUTTONS=0）"));
+  Serial.println(F("暂停、继续、取消用 PAUSE / RESUME / CANCEL"));
 #endif
-  Serial.print(F("RAM 余量 = ")); Serial.print(freeRam()); Serial.println(F(" 字节"));
+  Serial.print(F("内存还剩 ")); Serial.print(freeRam()); Serial.println(F(" 字节"));
   tpLoadAll();
   printStat("IDLE");
 }
@@ -203,7 +203,7 @@ void pollOne(Stream &s, uint8_t ch, bool inMotion) {
       lineBuf[ch][lineLen[ch]++] = c;
     } else {
       lineLen[ch] = 0;
-      Serial.println(F("ERR: 指令过长"));
+      Serial.println(F("指令太长，丢掉了"));
     }
   }
   if (lineLen[ch] > 0 && millis() - lineLastMs[ch] > LINE_GAP_MS) {
@@ -231,12 +231,12 @@ void dispatchInMotion(const char *cmd) {
   else if (eq(cmd, "CANCEL"))                   { stAbort = true;  stPause = false; Serial.println(F("CANCEL...")); }
   else if (eq(cmd, "STATUS"))                   { printStat(modeName()); }
 
-  else if (eq(cmd, "H")) { if (speedLevel < 5) speedLevel++; Serial.print(F("速度档 = ")); Serial.println(speedLevel); }
-  else if (eq(cmd, "L")) { if (speedLevel > 1) speedLevel--; Serial.print(F("速度档 = ")); Serial.println(speedLevel); }
+  else if (eq(cmd, "H")) { if (speedLevel < 5) speedLevel++; Serial.print(F("速度档 ")); Serial.println(speedLevel); }
+  else if (eq(cmd, "L")) { if (speedLevel > 1) speedLevel--; Serial.print(F("速度档 ")); Serial.println(speedLevel); }
   else if (cmd[0]) {
-    Serial.print(F("BUSY: 动作还没走完，忽略了「"));
+    Serial.print(F("还在动，先不发「"));
     Serial.print(cmd);
-    Serial.println(F("」。等它停稳再发；嫌慢可敲 H 加速，或敲 CANCEL 中断"));
+    Serial.println(F("」。H 可以加速，CANCEL 可以停"));
   }
 }
 
@@ -261,9 +261,9 @@ void dispatch(char *cmd) {
       case 'O': cmdGripper(GRIP_OPEN,  "开爪"); return;
       case 'S': cmdGripper(GRIP_CLOSE, "合爪"); return;
       case 'H': if (speedLevel < 5) speedLevel++;
-                Serial.print(F("速度档 = ")); Serial.println(speedLevel); return;
+                Serial.print(F("速度档 ")); Serial.println(speedLevel); return;
       case 'L': if (speedLevel > 1) speedLevel--;
-                Serial.print(F("速度档 = ")); Serial.println(speedLevel); return;
+                Serial.print(F("速度档 ")); Serial.println(speedLevel); return;
 
       case 'A': runTeach5(0, "A"); return;
       case 'B': runTeach5(1, "B"); return;
@@ -310,38 +310,43 @@ void dispatch(char *cmd) {
   else if (eq(p, "WCLR"))                               cmdTeachClear();
   else if (eq(p, "LIST"))                               cmdTeachList();
 
-  else if (eq(p, "RAM"))   { Serial.print(F("RAM 余量 = ")); Serial.print(freeRam()); Serial.println(F(" 字节")); }
+  else if (eq(p, "RAM"))   { Serial.print(F("内存还剩 ")); Serial.print(freeRam()); Serial.println(F(" 字节")); }
   else if (p[0] == 'P' && p[1] == 'P')                  cmdPickPlace(p);
   else if (p[0] == 'P' && isdigit((unsigned char)p[1])) cmdTeachPut(p);
   else if (eq(p, "JOY"))   printJoystick();
   else if (eq(p, "HELP"))  printHelp();
   else if (eq(p, "STATUS"))printStat(modeName());
-  else { Serial.print(F("未知指令: ")); Serial.println(p); Serial.println(F("输入 HELP 查看指令表")); }
+  else { Serial.print(F("没这个指令： ")); Serial.println(p); Serial.println(F("发 HELP 看看")); }
 }
 
 void printHelp() {
-  Serial.println(F("---- meArm 指令表 ----"));
-  Serial.println(F("任务一: M=摇杆操控  O/S=开爪/合爪  H/L=加速/减速  x10,y30,z20=多舵机"));
-  Serial.println(F("任务二: RUN=依次跑三个物体的示教点位（一条走完 A→B→C）"));
-  Serial.println(F("        PP 0 1 2 3 4=按五号位取放一遍  W<n>=记姿态  R<n>=回姿态  LIST=列出"));
-  Serial.println(F("        A/B/C 单敲=跑该物体的示教点位（和 RUN 是同一套）"));
-  Serial.println(F("        [示教] B30/S60/E100/G20=把某轴直接设到该位置(底座/大臂/小臂/夹爪)"));
-  Serial.println(F("               S/E: 数字大 = 抬得高      B: 数字小 = 往左"));
-  Serial.println(F("               G 用夹紧程度：0=合死 100=全开（不是 0~180 的舵机角）"));
-  Serial.println(F("               JB/JS/JE/JG±5=在该轴基础上再转 5°(只剩一点没对准时用)"));
-  Serial.println(F("               W<0~16>=记下当前姿态  R<n>=回到该姿态  LIST=列出  WCLR=清空"));
-  Serial.println(F("               P<号> B S E G=直接敲数字设点位(机械臂不动，照 LIST 的数抄)"));
-  Serial.println(F("                 └ 点位存在 EEPROM 里，重新烧程序/断电都不会丢"));
-  Serial.println(F("               PP 0 1 2 3 4=按示教跑一遍取放(次序即走路次序)"));
-  Serial.println(F("                 0物体上方 1物体位 2上升 3同高度平移 4放置位"));
-  Serial.println(F("任务三: 1=循环夹取  2=录制  3=回放  4=回中"));
-  Serial.println(F("        （这四个就是按键1~4，电路组遥控板还没到位，先用串口敲）"));
-  Serial.println(F("          A=号位0~5  B=6~11  C=12~15；按键1 走示教点位，不是逆解）"));
-  Serial.println(F("任务五: LINE=直线  N/T/Z/V(或TRI)=图形  TEACH=示教  SET=记录点  CLR=清空"));
-  Serial.println(F("        DRAW=折线  CURVE=平滑曲线  DEMO=内置五点  GO=待机位"));
-  Serial.println(F("        PAUSE/RESUME/CANCEL=暂停/继续/取消"));
-  Serial.println(F("调试  : CAL=打印笔尖坐标  JOG s e=连杆角驱动  JOY=打摇杆原始读数"));
-  Serial.println(F("        STATUS=状态  RAM=剩余内存字节数"));
-  Serial.println(F("        F<角度>=夹爪直接打到该逻辑角(大=张开)，标定用；回显含原始角"));
-  Serial.println(F("        D<毫米>=笔尖高度微调(负=往下压，如 D-2)，画图时现场调 PEN_DROP 用"));
+  Serial.println(F("---- 指令 ----"));
+  Serial.println(F("摇杆：M 开/关"));
+  Serial.println(F("夹爪：O 张开，S 合上"));
+  Serial.println(F("速度：H 快一档，L 慢一档"));
+  Serial.println(F("三个舵机一起转：x10,y30,z20"));
+  Serial.println(F(""));
+  Serial.println(F("取放：A B C 各走一个，RUN 从 A 一路走到 C"));
+  Serial.println(F("点位用 W<号> 记，R<号> 回去，LIST 看全部，WCLR 清空"));
+  Serial.println(F("PP 0 1 2 3 4 按号位顺序走一遍"));
+  Serial.println(F("0 物体上方，1 物体位，2 上升，3 平移，4 放置位"));
+  Serial.println(F("点位存在 EEPROM 里，断电不丢"));
+  Serial.println(F(""));
+  Serial.println(F("摆姿势：B30 S60 E100 G20 把某个轴设到指定位置"));
+  Serial.println(F("S/E 数字大是抬高，B 数字小是往左"));
+  Serial.println(F("G 是夹紧程度，0 合死，100 全开"));
+  Serial.println(F("JB-3 这种是在当前角度上加减小角度"));
+  Serial.println(F("P0 后面的四个数是直接抄 LIST，机械臂不动"));
+  Serial.println(F(""));
+  Serial.println(F("按键/遥控：1 循环夹取，2 录制，3 回放，4 回中"));
+  Serial.println(F("A 是号位 0~5，B 是 6~11，C 是 12~15"));
+  Serial.println(F(""));
+  Serial.println(F("画图：LINE 直线，N T Z V 几个图形，三角形也可以发 TRI"));
+  Serial.println(F("TEACH 进示教，摇杆移笔尖，SET 记点，CLR 清空"));
+  Serial.println(F("DRAW 折线，CURVE 平滑曲线，DEMO 用内置五点"));
+  Serial.println(F("画的时候 PAUSE 暂停，RESUME 继续，CANCEL 取消，GO 回待机"));
+  Serial.println(F(""));
+  Serial.println(F("调试：CAL 看笔尖坐标，JOG s e 直接给连杆角，JOY 看摇杆读数"));
+  Serial.println(F("STATUS 看状态，RAM 看剩多少内存"));
+  Serial.println(F("F<角> 夹爪直接转，D<毫米> 笔尖高低微调，负数往下压"));
 }

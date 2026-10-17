@@ -1,4 +1,4 @@
-// 任务二辅助：示教并保存 17 个姿态点位，按记录顺序完成夹取放置
+// 示教并保存 17 个姿态点位，按记录顺序完成夹取放置
 // 点位写入 EEPROM，掉电后仍可读取
 
 const uint8_t TP_N = 17;
@@ -41,7 +41,7 @@ void tpLoadAll() {
     tpG[i] = constrain((int)EEPROM.read(a + 3), GR_MIN,   GR_MAX);
     tpSet[i] = true;
   }
-  Serial.println(F("已从 EEPROM 读回上次的示教点位（敲 LIST 看）"));
+  Serial.println(F("读回了上次存的点位，LIST 可以看"));
 }
 
 void printPose(const __FlashStringHelper *tag) {
@@ -56,7 +56,7 @@ void cmdJog1(const char *p) {
   char ax = toupper(p[1]);
   float d = atof(p + 2);
   if (d == 0) {
-    Serial.println(F("格式: JB±n / JS±n / JE±n / JG±n   例 JB-3"));
+    Serial.println(F("用法像 JB-3、JS5 这样"));
     return;
   }
   int tB = curBase, tS = curShoulder, tE = curElbow, tG = curGripper;
@@ -66,7 +66,7 @@ void cmdJog1(const char *p) {
     case 'E': tE = curElbow    + (int)round(d); break;
     case 'G': tG = curGripper  + (int)round(d); break;
     default:
-      Serial.println(F("轴只能是 B(底座) / S(大臂) / E(小臂) / G(夹爪)"));
+      Serial.println(F("轴只认 B S E G"));
       return;
   }
 
@@ -90,7 +90,7 @@ void cmdAxisAbs(const char *p) {
   if (*q == '+') q++;
 
   if (!(isdigit((unsigned char)*q) || (*q == '-' && isdigit((unsigned char)q[1])))) {
-    Serial.println(F("格式: B30 / S60 / E100 / G20   (字母后面要跟数字)"));
+    Serial.println(F("写法像 B30、S60、E100、G20"));
     return;
   }
 
@@ -102,15 +102,15 @@ void cmdAxisAbs(const char *p) {
     case 'E': lo = EL_MIN;   hi = EL_MAX;   break;
     case 'G': lo = 0;        hi = 100;      break;
     default:
-      Serial.println(F("轴只能是 B(底座) / S(大臂) / E(小臂) / G(夹爪)"));
+      Serial.println(F("轴只认 B S E G"));
       return;
   }
 
   int cv = constrain(v, lo, hi);
   if (cv != v) {
-    Serial.print(F("注意: ")); Serial.print(v);
-    Serial.print(F(" 超出该轴范围 ")); Serial.print(lo); Serial.print('~'); Serial.print(hi);
-    Serial.print(F("，实际按 ")); Serial.print(cv); Serial.print(F(" 走"));
+    Serial.print(F("超范围了：")); Serial.print(v);
+    Serial.print(F("，这个轴是 ")); Serial.print(lo); Serial.print('~'); Serial.print(hi);
+    Serial.print(F("，按 ")); Serial.print(cv); Serial.print(F(" 走"));
     if (ax == 'G') { Serial.print(F("（舵机角 ")); Serial.print(gripPctToServo(cv)); Serial.print(F("）")); }
     Serial.println();
   }
@@ -150,7 +150,7 @@ void cmdTeachWrite(const char *p) {
 
 void cmdTeachClear() {
   tpEraseAll();
-  Serial.println(F("已清空全部点位（EEPROM 也清了）"));
+  Serial.println(F("点位全清了，EEPROM 也清了"));
 }
 
 void cmdTeachPut(const char *p) {
@@ -162,7 +162,7 @@ void cmdTeachPut(const char *p) {
     if (!*q) break;
 
     if (toupper((unsigned char)*q) != 'P') {
-      Serial.println(F("ERR: 格式是 P<号> <B> <S> <E> <G>，例如 P0 120 90 90 103"));
+      Serial.println(F("写法像 P0 120 90 90 103"));
       return;
     }
 
@@ -175,7 +175,7 @@ void cmdTeachPut(const char *p) {
     int v[4];
     if (parseNums(q, v, 4) < 4) {
       Serial.print(F("ERR: ")); Serial.print(n);
-      Serial.println(F(" 号位后面要跟 B S E G 四个数"));
+      Serial.println(F(" 号位后面少了数字，要 B S E G 四个"));
       return;
     }
 
@@ -211,13 +211,13 @@ void cmdTeachGo(const char *p) {
     Serial.print(F("第 ")); Serial.print(n); Serial.println(F(" 号位还没记录"));
     return;
   }
-  Serial.print(F("→ ")); Serial.print(n); Serial.println(F(" 号位"));
+  Serial.print(F("去 ")); Serial.print(n); Serial.println(F(" 号位"));
   moveJoints(tpB[n], tpS[n], tpE[n], tpG[n]);
   printPose(F("到位"));
 }
 
 void cmdTeachList() {
-  Serial.println(F("---- 已记录点位 ----"));
+  Serial.println(F("已记录的点位："));
   bool any = false;
   for (uint8_t i = 0; i < TP_N; i++) {
     if (!tpSet[i]) continue;
@@ -227,9 +227,7 @@ void cmdTeachList() {
     Serial.print(F(" E=")); Serial.print(tpE[i]);
     Serial.print(F(" G=")); Serial.println(tpG[i]);
   }
-  if (!any) Serial.println(F("  （还没有记录任何点位）"));
-  Serial.println(F("抬起偏移: 已取消（改成自己记“正上方”点位，见 HELP 里的 PP）"));
-  Serial.println(F("--------------------"));
+  if (!any) Serial.println(F("（空）"));
 }
 
 bool moveStaged(int tB, int tS, int tE) {
@@ -279,7 +277,7 @@ bool runWalk(const uint8_t *slot, const uint8_t *act, uint8_t n) {
   for (uint8_t k = 0; k < n; k++) {
     if (!tpSet[slot[k]]) {
       Serial.print(F("ERR: ")); Serial.print(slot[k]);
-      Serial.println(F(" 号位还没记录。先摆好姿势敲 W<号>"));
+      Serial.println(F(" 号位还没记，先摆好再 Wn"));
       return false;
     }
   }
@@ -311,37 +309,37 @@ bool runChain(uint8_t from, uint8_t n) {
     act[k]  = TP_CHAIN_ACT[from + k];
   }
 
-  Serial.print(F("== 第 ")); Serial.print(from);
-  Serial.print(F(" ~ "));    Serial.print((int)from + n - 1);
-  Serial.println(F(" 步 =="));
+  Serial.print(F("第 ")); Serial.print(from);
+  Serial.print(F(" 到 "));    Serial.print((int)from + n - 1);
+  Serial.println(F(" 步"));
 
   if (!runWalk(slot, act, n)) return false;
 
   if (n >= 2 && TP_CHAIN_ACT[from + n - 1] == ACT_OPEN) {
     uint8_t s = slot[n - 2];
-    Serial.print(F("（补一步：抬回 ")); Serial.print(s); Serial.println(F(" 号位）"));
+    Serial.print(F("补一下，抬回 ")); Serial.print(s); Serial.println();
     if (!moveStaged(tpB[s], tpS[s], tpE[s])) return false;
   }
   return true;
 }
 
 bool runTeach5(uint8_t idx, const char *name) {
-  Serial.print(F("== 物体 ")); Serial.print(name); Serial.println(F(" =="));
+  Serial.print(F("物体 ")); Serial.print(name); Serial.println();
   if (!runChain(TP_GRP_START[idx], TP_GRP_LEN[idx])) {
-    Serial.print(F("（物体 ")); Serial.print(name);
-    Serial.println(F(" 的号位还没记全，先摆好姿势敲 W<号>）"));
+    Serial.print(F("物体 ")); Serial.print(name);
+    Serial.println(F(" 的号位没记全，先摆好再 Wn"));
     return false;
   }
   return true;
 }
 
 bool runAllThree() {
-  Serial.println(F("== RUN：A → B → C 一路走完 =="));
+  Serial.println(F("RUN：A B C 一次走完"));
   if (!runChain(0, TP_CHAIN_N)) {
-    Serial.println(F("（RUN 就停在这里）"));
+    Serial.println(F("停在这了"));
     return false;
   }
-  Serial.println(F("== RUN 完成：A / B / C 全都走完了 =="));
+  Serial.println(F("全走完了"));
   return true;
 }
 
@@ -349,18 +347,17 @@ void cmdPickPlace(const char *p) {
   int n[6];
   uint8_t cnt = parseNums(p + 2, n, 6);
   if (cnt < 5) {
-    Serial.print(F("用法: PP <0> <1> <2> <3> <4> [<5>]   编号 0~"));
+    Serial.print(F("用法 PP 0 1 2 3 4，编号 0~"));
     Serial.println(TP_N - 1);
-    Serial.println(F("  至少五个，次序就是机械臂走路的次序："));
-    Serial.println(F("    0 物体上方 → 1 物体位 → 2 上升 → 3 同高度平移 → 4 放置位"));
-    Serial.println(F("  第六个（可省）是「放完抬起」：给了就走它，不给就退回 3 的高度。"));
-    Serial.println(F("  A = PP 0 1 2 3 4 5   B = PP 6 7 8 9 10 11   C = PP 12 13 14 15"));
+    Serial.println(F("至少 5 个，顺序就是走位顺序：0 物体上方，1 物体位，2 上升，3 平移，4 放置位"));
+    Serial.println(F("第 6 个可有可无，是放完抬起；不给就退回 3 的高度"));
+    Serial.println(F("A 是 0 1 2 3 4 5，B 是 6 7 8 9 10 11，C 是 12 13 14 15"));
     return;
   }
   uint8_t slot[6], act[6];
   for (uint8_t k = 0; k < cnt; k++) {
     if (n[k] < 0 || n[k] >= (int)TP_N) {
-      Serial.print(F("ERR: 号位只能是 0~")); Serial.println(TP_N - 1);
+      Serial.print(F("号位只能是 0~")); Serial.println(TP_N - 1);
       return;
     }
     slot[k] = (uint8_t)n[k];

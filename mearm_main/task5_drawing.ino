@@ -1,4 +1,4 @@
-// 任务五：直线、基础图形、五点示教折线与平滑曲线
+// 直线、基础图形、五点示教折线与平滑曲线
 
 const uint8_t TEACH_N = 5;
 float   teachU[TEACH_N], teachV[TEACH_N];
@@ -14,9 +14,9 @@ bool penTo(float u, float v, float h) { return moveToTable(u, v, h + penHTrim); 
 
 void cmdPenTrim(const char *p) {
   penHTrim = atof(p + 1) / 10.0;
-  Serial.print(F("[诊断] 笔尖高度偏移 = "));
+  Serial.print(F("笔尖高度偏移 "));
   Serial.print(penHTrim * 10.0, 1);
-  Serial.println(F(" mm  （负 = 往下压）"));
+  Serial.println(F(" mm（负数是往下压）"));
 }
 
 bool penTravel(float u, float v, float h) { return moveTipLinear(u, v, h + penHTrim); }
@@ -28,7 +28,7 @@ bool goStandby() { return penTravel(HOME_U, HOME_V, HOME_H); }
 void beginDrawTask(const char *title) {
   stAbort = false; stPause = false;
   mode = MODE_IDLE;
-  Serial.print(F("== ")); Serial.print(title); Serial.println(F(" =="));
+  Serial.print(F("开始 ")); Serial.print(title); Serial.println();
   printStat("DRAWING");
   moveJoints(curBase, curShoulder, curElbow, (int)PEN_GRIP);
   gDrawSteady = true;
@@ -36,12 +36,12 @@ void beginDrawTask(const char *title) {
 
 void endDrawTask(const char *title, bool cancelled) {
   if (cancelled) {
-    Serial.println(F(">> 已取消当前绘图，返回待机位"));
+    Serial.println(F("取消，回待机位"));
     stAbort = false;
   }
   goStandby();
-  Serial.print(F("== ")); Serial.print(title);
-  Serial.println(cancelled ? F(" 已取消 ==") : F(" 完成 =="));
+  Serial.print(title);
+  Serial.println(cancelled ? F(" 取消了") : F(" 完成"));
   printStat("IDLE");
   gDrawSteady = false;
 }
@@ -50,7 +50,7 @@ const float LINE_U1 = -6.0, LINE_V1 = 13.0;
 const float LINE_U2 =  6.0, LINE_V2 = 13.0;
 
 void drawLineDemo() {
-  beginDrawTask("子任务1 直线");
+  beginDrawTask("直线");
   bool cc = false;
   if (!penUp(LINE_U1, LINE_V1)) cc = true;
   if (!cc && !penDown(LINE_U1, LINE_V1)) cc = true;
@@ -114,7 +114,7 @@ void enterTeach() {
 
   float h;
   jointsToTable(curBase, curShoulder, curElbow, tgU, tgV, h);
-  Serial.println(F("== 示教模式：摇杆1 移动笔尖(X=左右 Y=前后)，按 D11 或发送 SET 记录 =="));
+  Serial.println(F("示教：摇杆1 移笔尖，X 左右 Y 前后，按 D11 或发 SET 记点"));
   Serial.print(F("   当前笔尖 u=")); Serial.print(tgU, 1);
   Serial.print(F(" v="));           Serial.println(tgV, 1);
   printStat("TEACH");
@@ -152,9 +152,9 @@ void teachStep() {
 }
 
 void recordTeachPoint() {
-  if (mode != MODE_TEACH) { Serial.println(F("ERR: 请先发送 TEACH 进入示教模式")); return; }
+  if (mode != MODE_TEACH) { Serial.println(F("先发 TEACH 进示教")); return; }
   if (teachCount >= TEACH_N) {
-    Serial.println(F("示教点已满 5 个，如需重录请发送 CLR 清空"));
+    Serial.println(F("5 个点满了，要重录先发 CLR"));
     return;
   }
   float u, v, h;
@@ -162,8 +162,8 @@ void recordTeachPoint() {
   teachU[teachCount] = u;
   teachV[teachCount] = v;
   teachCount++;
-  Serial.print(F("已记录示教点 ")); Serial.print(teachCount);
-  Serial.print(F("/5 : (u=")); Serial.print(u, 1);
+  Serial.print(F("记下第 ")); Serial.print(teachCount);
+  Serial.print(F(" 个点 (u=")); Serial.print(u, 1);
   Serial.print(F(", v="));     Serial.print(v, 1);
   Serial.println(F(")"));
 }
@@ -190,8 +190,8 @@ void catmullRom(float p0u, float p0v, float p1u, float p1v,
 }
 
 void drawByTeach(bool smooth) {
-  if (teachCount < 2) { Serial.println(F("ERR: 示教点不足 2 个，请先 TEACH + SET")); return; }
-  beginDrawTask(smooth ? "子任务5 五点示教 + 平滑曲线" : "子任务4 五点示教 + 折线");
+  if (teachCount < 2) { Serial.println(F("至少 2 个点，先 TEACH 再 SET")); return; }
+  beginDrawTask(smooth ? "五点示教 曲线" : "五点示教 折线");
 
   bool cc = false;
   if (!goStandby()) cc = true;

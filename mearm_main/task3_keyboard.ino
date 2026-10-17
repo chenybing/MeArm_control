@@ -1,4 +1,4 @@
-// 任务三：按键 1 循环夹取，按键 2/3 录制回放，按键 4 回中
+// 按键 1 循环夹取，按键 2/3 录制回放，按键 4 回中
 
 const uint16_t REC_MAX = 200;
 const uint16_t REC_MS  = 60;
@@ -9,8 +9,8 @@ uint8_t  cycleIdx  = 0;
 
 void cyclePick() {
   const char *names[3] = { "A", "B", "C" };
-  Serial.print(F("== 按键1 循环夹取，本次: ")); Serial.print(names[cycleIdx]);
-  Serial.println(F(" =="));
+  Serial.print(F("循环夹取，这次 ")); Serial.print(names[cycleIdx]);
+  Serial.println();
   if (!runTeach5(cycleIdx, names[cycleIdx])) {
     return;
   }
@@ -20,18 +20,18 @@ void cyclePick() {
 void toggleRecord() {
   if (mode == MODE_REC) {
     mode = MODE_IDLE; recOn = false;
-    Serial.print(F("录制结束，共 ")); Serial.print(recCount);
-    Serial.print(F(" 帧 ≈ ")); Serial.print(recCount * REC_MS / 1000.0, 1);
+    Serial.print(F("录制完了，")); Serial.print(recCount);
+    Serial.print(F(" 帧，约 ")); Serial.print(recCount * REC_MS / 1000.0, 1);
     Serial.println(F(" 秒"));
     if (recCount * REC_MS < 10000) {
-      Serial.println(F("WARN 录制时长不足 10 秒，建议重新录制"));
+      Serial.println(F("不到 10 秒，建议重录"));
     }
     printStat("IDLE");
   } else {
-    if (mode != MODE_IDLE) { Serial.println(F("BUSY: 请先结束当前模式")); return; }
+    if (mode != MODE_IDLE) { Serial.println(F("先把当前模式退出来")); return; }
     recCount = 0; recOn = true; mode = MODE_REC;
     recNextMs = millis();
-    Serial.println(F("== 开始录制：请用摇杆操控机械臂（>10 秒），再按一次结束 =="));
+    Serial.println(F("开始录制，用摇杆动，再按一次结束（最好超过 10 秒）"));
     printStat("REC");
   }
 }
@@ -48,7 +48,7 @@ void recordStep() {
       recBuf[recCount][3] = (uint8_t)curGripper;
       recCount++;
     } else {
-      Serial.println(F("WARN 录制缓冲已满（约 12 秒），自动结束"));
+      Serial.println(F("缓冲满了（约 12 秒），自动停"));
       toggleRecord();
     }
   }
@@ -59,13 +59,13 @@ inline uint16_t playbackDelay() {
 }
 
 void playRecord() {
-  if (recCount < 2) { Serial.println(F("ERR: 还没有录制数据，请先按 2 录制")); return; }
-  if (mode != MODE_IDLE) { Serial.println(F("BUSY: 请先结束当前模式")); return; }
+  if (recCount < 2) { Serial.println(F("还没录过，先按 2")); return; }
+  if (mode != MODE_IDLE) { Serial.println(F("先把当前模式退出来")); return; }
 
   stAbort = false; stPause = false;
-  Serial.print(F("== 回放录制动作，")); Serial.print(recCount);
+  Serial.print(F("回放，")); Serial.print(recCount);
   Serial.print(F(" 帧 ≈ ")); Serial.print(recCount * REC_MS / 1000.0, 1);
-  Serial.println(F(" 秒 =="));
+  Serial.println(F(" 秒"));
   printStat("PLAY");
 
   for (uint16_t i = 0; i < recCount; i++) {
@@ -84,7 +84,7 @@ void playRecord() {
 void goHome() {
   stAbort = false; stPause = false;
   mode = MODE_IDLE;
-  Serial.println(F("== 回中 =="));
+  Serial.println(F("回中"));
   moveJoints(INIT_BASE, INIT_SHOULDER, INIT_ELBOW, INIT_GRIPPER);
   printStat("IDLE");
 }

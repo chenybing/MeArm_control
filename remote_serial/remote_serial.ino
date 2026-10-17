@@ -1,4 +1,4 @@
-// 按键遥控板：按键 1~4 对应任务三，5~8 对应绘图控制
+// 按键遥控板：按键 1~4 发动作指令，5~8 控制绘图
 // 通过串口把指令发送给机械臂主控
 
 #include <SoftwareSerial.h>
@@ -52,8 +52,8 @@ void setup() {
   armSerial.begin(9600);
 #endif
 
-  Serial.println(F("READY | 按键遥控板 | 1循环 2录制 3回放 4回中 | 5暂停 6继续 7取消 8记点"));
-  Serial.println(F("提示：可直接在串口监视器里打字，指令会转发给机械臂"));
+  Serial.println(F("遥控板就绪：1 循环 2 录制 3 回放 4 回中，5 暂停 6 继续 7 取消 8 记点"));
+  Serial.println(F("也能直接在串口里打字，会转给机械臂"));
 }
 
 void loop() {
@@ -88,6 +88,6 @@ void sendCommand(const char *cmd) {
   ARM.print(cmd);
   ARM.print('\n');
 
-  Serial.print(F("发送指令 → "));
+  Serial.print(F("发 "));
   Serial.println(cmd);
 }

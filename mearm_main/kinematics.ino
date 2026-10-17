@@ -207,7 +207,7 @@ bool tableToJoints(float u, float v, float h, int &tB, int &tS, int &tE) {
   }
 
   if (clipped) {
-    Serial.print(F("WARN 目标超出可达范围，已就近处理: u=")); Serial.print(u);
+    Serial.print(F("够不到这个点，就近走了：u=")); Serial.print(u);
     Serial.print(F(" v=")); Serial.print(v);
     Serial.print(F(" h=")); Serial.println(h);
   }
@@ -233,7 +233,7 @@ void jointsToTable(int b, int s, int e, float &u, float &v, float &h) {
 void printCalib() {
   float u, v, h;
   jointsToTable(curBase, curShoulder, curElbow, u, v, h);
-  Serial.print(F("CAL 舵机角 B=")); Serial.print(curBase);
+  Serial.print(F("CAL B=")); Serial.print(curBase);
   Serial.print(F(" S=")); Serial.print(curShoulder);
   Serial.print(F(" E=")); Serial.print(curElbow);
   Serial.print(F(" G=")); Serial.print(curGripper);
@@ -243,8 +243,8 @@ void printCalib() {
 }
 
 void printJoystick() {
-  Serial.println(F("== 摇杆实时读数：一直打，敲任意字符停（最多 60 秒）=="));
-  Serial.println(F("   括号里是【相对中位的偏差】，推杆应该让它跳到 ±几百"));
+  Serial.println(F("摇杆读数，一直推就行，敲任意键停（最多 60 秒）"));
+  Serial.println(F("括号里是相对中位的偏差，推到底应该到 ±几百"));
   for (uint16_t i = 0; i < 300; i++) {
     int a0 = analogRead(PIN_J1X), a1 = analogRead(PIN_J1Y);
     int a2 = analogRead(PIN_J2X), a3 = analogRead(PIN_J2Y);
@@ -259,7 +259,7 @@ void printJoystick() {
     if (Serial.available()) break;
   }
   while (Serial.available()) (void)Serial.read();
-  Serial.println(F("== 结束 =="));
+  Serial.println(F("结束"));
 }
 
 void cmdJog(const char *p) {

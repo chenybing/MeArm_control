@@ -1,4 +1,4 @@
-// 任务一：摇杆实时控制、夹爪开合、x/y/z 多舵机指令
+// 摇杆实时控制、夹爪开合、x/y/z 多舵机指令
 
 #define JOY_M_SCALE 0.65f
 
@@ -66,10 +66,10 @@ void smoothJoint(int &cur, float &pos, int target, int lo, int hi,
 void cmdGripperRaw(const char *p) {
   int a = atoi(p + 1);
   a = constrain(a, GR_MIN, GR_MAX);
-  Serial.print(F("[诊断] 夹爪 逻辑角 → ")); Serial.print(a);
+  Serial.print(F("夹爪逻辑角 ")); Serial.print(a);
   Serial.print(F("（舵机原始角 ")); Serial.print(GR_RAW_SUM - a); Serial.println(F("）"));
   moveJoints(curBase, curShoulder, curElbow, a);
-  Serial.println(F("[诊断] 已下发。舵机是开环的，实际停在哪得用眼睛看"));
+  Serial.println(F("发出去了。舵机是开环的，停在哪得看实际"));
 }
 
 void cmdGripper(int target, const char *name) {
@@ -81,7 +81,7 @@ void cmdGripper(int target, const char *name) {
 void cmdMultiServo(const char *p) {
   int vx = numAfter(p, 'x'), vy = numAfter(p, 'y'), vz = numAfter(p, 'z');
   if (vx < 0 || vy < 0 || vz < 0) {
-    Serial.println(F("ERR: 格式应为 x角度,y角度,z角度  例: x10,y30,z20"));
+    Serial.println(F("格式不对，应该像 x10,y30,z20 这样"));
     return;
   }
   vx = constrain(vx, 0, 180); vy = constrain(vy, 0, 180); vz = constrain(vz, 0, 180);
