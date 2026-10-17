@@ -86,7 +86,7 @@ int stepDelayFor(int remain, int total) {
   return base + base * x * x / 10000;
 }
 
-// 四轴同时按最大差值逐步逼近目标角，差值大的轴先走
+// 四轴同时向目标角走，每步各轴走 1 度
 bool moveJoints(int tB, int tS, int tE, int tG) {
   tB = constrain(tB, BASE_MIN, BASE_MAX); tS = constrain(tS, SH_MIN, SH_MAX);
   tE = constrain(tE, EL_MIN,   EL_MAX);   tG = constrain(tG, GR_MIN, GR_MAX);
