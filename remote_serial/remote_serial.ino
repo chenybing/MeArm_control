@@ -1,122 +1,45 @@
-/* ============================================================================
- *  Arduino 按键遥控板 · 发送端固件（任务三 · 串口通信侧）
- * ----------------------------------------------------------------------------
- *  这是「电路组自制的按键遥控板」上烧的程序。它负责：
- *    ① 捕获 4 个按键（带消抖），把对应指令通过串口发给机械臂主控；
- *    ② （可选）接收机械臂回传的 STAT:xxx 状态行，显示在 OLED 上。
- *
- *  ── 指令协议（与 mearm_main.ino 一致，如需改动两边都要改）──
- *    按键1 → "1"   循环夹取 A / B / C（每按一次切换下一个物体）
- *    按键2 → "2"   开始 / 结束录制（摇杆操控，需 >10 秒）
- *    按键3 → "3"   回放上一次录制的动作
- *    按键4 → "4"   回中（回到初始姿态）
- *
- *  ── 接线（与机械臂主控对接）────────────────────────────────────────────────
- *    遥控板 TX  →  机械臂 D0(RX)        ← 必须交叉接
- *    遥控板 RX  →  机械臂 D1(TX)        ← 可选，只用来收状态显示到 OLED
- *    遥控板 GND →  机械臂 GND           ← 必须共地！否则通信一定失败
- *
- *    ⚠ 两个坑（现场演示最容易翻车的地方）：
- *    1) 机械臂那一端用的是硬件串口 D0/D1，与板载 CH340 并联。
- *       如果机械臂还插着 USB 线，CH340 的 TX 会和遥控板的 TX 一起驱动 D0，
- *       双方互相打架 → 指令乱码或收不到。
- *       解决办法：下载完程序后【拔掉机械臂的 USB 线】，改用外接 5V 供电。
- *       如果必须同时插 USB，请把 mearm_main.ino 顶部的
- *       REMOTE_SOFT_SERIAL 改成 1，用软串口 D12/D13 接遥控板。
- *    2) 两块板子必须共地，否则 5V 电平没有共同参考，数据全是乱码。
- *
- *  ── 按键引脚 ───────────────────────────────────────────────────────────────
- *    ⚠ 这里给的是【默认值】，实际引脚请以电路组画板子时的连接为准！
- *      拿不准就直接问电路方向的同学要引脚表，改下面 4 个常量即可。
- * ==========================================================================*/
+// 按键遥控板：按键 1~4 对应任务三，5~8 对应绘图控制
+// 通过串口把指令发送给机械臂主控
 
-#include <SoftwareSerial.h>   // 用于把指令转发给机械臂（如果不用板载 D0/D1）
+#include <SoftwareSerial.h>
 
-/* ======================= 1. 按键引脚（★ 2026-10-15 按电路组图纸定）=========
- * 电路组板子上一共 8 个按钮网络：
- *     A0_BUTTON / A1_BUTTON / A2_BUTTON / A3_BUTTON   ← 原理图上【4 个按键元件】就接在这 4 个
- *     PD5_BUTTON / PD6_BUTTON / PD7_BUTTON / PB8_BUTTON（= pin12 = PB0 = D8）
- * 电路组答复：「哪个键对应哪个功能，你们自己选」+「A0~A3 是按键」+「按下读到 LOW」。
- *
- * ⇒ 我们选 **A0~A3**（就是原理图上那 4 个实体按键），按 A0→1、A1→2、A2→3、A3→4 排。
- *   ⚠ 顺序随便调 —— 现场按键试一下，对不上就把下面四行换过来即可。
- *   ⚠ A0~A3 在这块板上当【数字口】用（不是 ADC），INPUT_PULLUP 照常有效。
- *
- * ⚠ 那个 `PB8_BUTTON` 的名字是个坑：ATMEGA328P-AU（TQFP32）的 pin 12
- *   **原厂名是 PB0**，对应 Arduino **D8**，不是 PB8。电路组说名字改不了，
- *   所以**以后要用那 4 个网络时必须记住它其实是 D8**。（我们这版用不到。） */
-/* ---- 按键引脚 ----
- *
- * 按【电路组那块按键板】的引脚来分配：
- *     前 4 个键 → A0 / A1 / A2 / A3      （板上 SW6~SW9）
- *     后 4 个键 → D5 / D6 / D7 / D8      （板上 SW10~SW13）
- *   后 4 个键在原理图里的网络名是 PD5_BUTTON / PD6_BUTTON / PD7_BUTTON / PB8_BUTTON，
- *   其中 PB8 这个名字是标的坑，那颗芯片上是 PB0，对应 Arduino 的 D8。
- *
- * 与机械臂之间走【板载串口】：本板 TX(D1) → 机械臂 D0，两块板必须共地。
- * 这条链路用的是硬件串口而不是软串口，因为 D6/D7 被按键 6、7 占着了。
- *
- * ⚠ 如果想换一块现成 Arduino 做按键板（考核允许这样替代），
- *   只需改两个地方：后 4 个键挪到 D2~D5（避开 D6/D7），
- *   并把下面的 ARM_SOFT_SERIAL 改成 1（改用 D7 发指令）。逻辑完全不变。
- */
-const uint8_t KEY1_PIN = A0;   // 按键1：循环夹取     → 发 "1"
-const uint8_t KEY2_PIN = A1;   // 按键2：录制         → 发 "2"
-const uint8_t KEY3_PIN = A2;   // 按键3：回放         → 发 "3"
-const uint8_t KEY4_PIN = A3;   // 按键4：回中         → 发 "4"
+const uint8_t KEY1_PIN = A0;
+const uint8_t KEY2_PIN = A1;
+const uint8_t KEY3_PIN = A2;
+const uint8_t KEY4_PIN = A3;
 
-/* 按键5~8：任务五的 暂停 / 继续 / 取消 / 记录示教点。
- *   机械臂端代码一行都不用改 —— mearm_main.ino 本来就认
- *   PAUSE / RESUME / CANCEL / SET 这四条串口指令。 */
-const uint8_t KEY5_PIN = 5;    // 按键5：暂停         → 发 PAUSE
-const uint8_t KEY6_PIN = 6;    // 按键6：继续         → 发 RESUME
-const uint8_t KEY7_PIN = 7;    // 按键7：取消         → 发 CANCEL
-const uint8_t KEY8_PIN = 8;    // 按键8：记录示教点   → 发 SET
+const uint8_t KEY5_PIN = 5;
+const uint8_t KEY6_PIN = 6;
+const uint8_t KEY7_PIN = 7;
+const uint8_t KEY8_PIN = 8;
 
-/* 按键接法：一端接引脚、一端接 GND → 用内部上拉，按下读到 LOW。
- * 如果电路组画的是「按下读到 HIGH」（下拉 + 接 VCC），把这里改成 false。 */
 const bool KEY_ACTIVE_LOW = true;
 
-/* ======================= 2. 与机械臂通信的口 ============================= */
-/* 用哪一路把指令发给机械臂：
- *   0 = 板载硬件串口 D0/D1（TXD/RXD 排针直接引到机械臂，最常用）
- *   1 = 软串口（默认 D6/D7，可在下面改）——当板载 D0/D1 被 CH340 占用、
- *       需要同时插着 USB 调试时用。                                  */
-/* 用哪一路把指令发给机械臂：
- *   0 = 板载硬件串口 D0/D1（TXD/RXD 排针直接引到机械臂）
- *   1 = 软串口（默认 D6/D7）
- *
- * ★ 电路组的按键板必须用 0：那块板上 D6/D7 被按键 6、7 占着，不能用软串口。
- *   接线：本板 TX(D1) → 机械臂 D0，GND ↔ GND。 */
 #define ARM_SOFT_SERIAL 0
 #if ARM_SOFT_SERIAL
-  SoftwareSerial armSerial(6, 7);        // RX(可不用), TX → 机械臂 RX
+  SoftwareSerial armSerial(6, 7);
   Stream &ARM = armSerial;
 #else
   Stream &ARM = Serial;
 #endif
 
-/* 指令之间加一点间隔，避免机械臂还在处理上一条时把两条粘在一起 */
 const uint16_t SEND_GAP_MS = 30;
 
-/* ======================= 3. 全局变量 ===================================== */
 const uint8_t KEY_COUNT = 8;
 const uint8_t KEY_PINS[KEY_COUNT] = {
   KEY1_PIN, KEY2_PIN, KEY3_PIN, KEY4_PIN,
   KEY5_PIN, KEY6_PIN, KEY7_PIN, KEY8_PIN
 };
-/* 每个键按下时发出去的串口指令（机械臂那边直接认这些字符串，
- * 大小写无所谓，mearm_main.ino 会统一转大写）。 */
+
 const char *KEY_CMDS[KEY_COUNT] = {
-  "1", "2", "3", "4",                    // 任务三：循环夹取 / 录制 / 回放 / 回中
-  "PAUSE", "RESUME", "CANCEL", "SET"     // 任务五：暂停 / 继续 / 取消 / 记录示教点
+  "1", "2", "3", "4",
+  "PAUSE", "RESUME", "CANCEL", "SET"
 };
 
 bool     keyLast[KEY_COUNT];
-uint32_t keyLock[KEY_COUNT];      // 消抖时间戳
+uint32_t keyLock[KEY_COUNT];
 uint32_t lastSendMs = 0;
 
-/* ======================= 4. setup / loop ================================= */
 void setup() {
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
     pinMode(KEY_PINS[i], KEY_ACTIVE_LOW ? INPUT_PULLUP : INPUT);
@@ -124,9 +47,9 @@ void setup() {
     keyLock[i] = 0;
   }
 
-  Serial.begin(9600);              // 与电脑通信（烧录 / 调试）
+  Serial.begin(9600);
 #if ARM_SOFT_SERIAL
-  armSerial.begin(9600);           // 与机械臂通信
+  armSerial.begin(9600);
 #endif
 
   Serial.println(F("READY | 按键遥控板 | 1循环 2录制 3回放 4回中 | 5暂停 6继续 7取消 8记点"));
@@ -134,39 +57,36 @@ void setup() {
 }
 
 void loop() {
-  /* ---- ① 扫描按键，有按下就发指令 ---- */
-  for (uint8_t i = 0; i < KEY_COUNT; i++) {
-    bool now = (digitalRead(KEY_PINS[i]) == LOW);   // 上拉接法：按下 = LOW
-    if (!KEY_ACTIVE_LOW) now = !now;                // 下拉接法：按下 = HIGH
 
-    if (now && !keyLast[i] && (millis() - keyLock[i] > 200)) {  // 200ms 消抖
+  for (uint8_t i = 0; i < KEY_COUNT; i++) {
+    bool now = (digitalRead(KEY_PINS[i]) == LOW);
+    if (!KEY_ACTIVE_LOW) now = !now;
+
+    if (now && !keyLast[i] && (millis() - keyLock[i] > 200)) {
       keyLock[i] = millis();
       sendCommand(KEY_CMDS[i]);
     }
     keyLast[i] = now;
   }
 
-  /* ---- ② 把电脑串口监视器里输入的内容转发给机械臂（方便现场救急）---- */
   if (Serial.available() > 0) {
     char c = Serial.read();
     ARM.write(c);
   }
 
-  /* ---- ③ 把机械臂回传的状态行打印出来（有 OLED 时改成显示到屏上）---- */
   while (ARM.available() > 0) {
     char c = ARM.read();
     Serial.write(c);
-    // 若电路组接了 OLED：把状态行攒起来，遇到 '\n' 时 OLED 显示即可
+
   }
 }
 
-/* ======================= 5. 发送指令 ===================================== */
 void sendCommand(const char *cmd) {
-  if (millis() - lastSendMs < SEND_GAP_MS) delay(SEND_GAP_MS);  // 限流
+  if (millis() - lastSendMs < SEND_GAP_MS) delay(SEND_GAP_MS);
   lastSendMs = millis();
 
   ARM.print(cmd);
-  ARM.print('\n');                 // 机械臂按「行」解析，必须带换行
+  ARM.print('\n');
 
   Serial.print(F("发送指令 → "));
   Serial.println(cmd);
